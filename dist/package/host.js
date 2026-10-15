@@ -150,11 +150,18 @@ export class TemporaryChats {
     // Ordinary forks and all 0.1.0 chats have no marker and remain untouched.
     for (const snapshot of await this.ctx.sessionPersistence.list()) {
       let saved;
-      try { saved = JSON.parse(await readFile(this.markerPath(snapshot.header), 'utf8')); }
-      catch (error) { if (error.code === 'ENOENT') continue; throw error; }
-      if (saved.version !== 2 || saved.childId !== snapshot.header.id || saved.parentId !== snapshot.header.parentSession || saved.parentId === saved.childId || typeof saved.leaseId !== 'string') throw new Error('临时侧聊标记无效，已保留记录。');
-      this.owned.set(saved.childId, saved);
-      await this.discard(saved);
+      try {
+        try { saved = JSON.parse(await readFile(this.markerPath(snapshot.header), 'utf8')); }
+        catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+        if (saved?.version !== 2 || saved.childId !== snapshot.header.id || saved.parentId !== snapshot.header.parentSession || saved.parentId === saved.childId || typeof saved.leaseId !== 'string') throw new Error('临时侧聊标记无效，已保留记录。');
+        this.owned.set(saved.childId, saved);
+        await this.discard(saved);
+      } catch (error) {
+        // A cold log can be corrupt or locked. Preserve it and let startup and
+        // other cleanup continue; it is not a live lease owned by this run.
+        if (this.owned.get(snapshot.header.id) === saved) this.owned.delete(snapshot.header.id);
+        this.ctx.logger.warn(`side-chat: skipped cleanup of temporary session "${snapshot.header.id}"; remaining stored files were preserved: ${String(error)}`);
+      }
     }
   }
 

@@ -19,12 +19,12 @@ child.once('exit', code => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const path = resolve(dir, entry.name);
         if (entry.isDirectory()) scan(path);
-        else if (entry.name === '.dsh-side-chat-v2.json') markers.push(path);
+        else if (entry.name === '.dsh-side-chat-v2.json' && path !== report.preservedCorruptMarker) markers.push(path);
       }
     };
     scan(resolve(report.data, 'core'));
     if (markers.length > 0) { report.failures.push('App/Core shutdown left temporary side-chat storage: ' + markers.join(', ')); result = 1; }
-    else report.checks.push('App/Core shutdown discards the remaining temporary side and leaves no side-chat storage marker');
+    else report.checks.push('App/Core shutdown discards the remaining live temporary side; only the unchanged corrupt startup fixture may retain its marker');
     writeFileSync(path, JSON.stringify(report, null, 2));
     writeFileSync(resolve(report.data, 'report.json'), JSON.stringify(report, null, 2));
     console.log(JSON.stringify({ surface, checks: report.checks, failures: report.failures, console: report.console, frameworkDiagnostics: report.frameworkDiagnostics, data: report.data }, null, 2));

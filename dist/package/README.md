@@ -10,20 +10,21 @@
 - 同一主会话再次执行 `/side` 会打开已有侧聊。侧聊中不能再创建侧聊。
 - 临时侧聊不出现在普通会话列表。关闭标签或收起右侧栏都会停止并清理侧聊；再次打开会创建新的空侧聊。清理尚未结束时，重新打开会等待清理完成。
 - 页面离开、App 退出或插件停用会结束侧聊。若进程被强制终止，下一次启用时只清理该版本标记的临时侧聊缓存。
+- 遗留临时侧聊若因日志损坏或文件锁定而无法清理，会保留原文件并在日志中记录警告；不阻止插件启用，也不会恢复到新侧聊中。无效的临时标记同样保留，其他有效临时侧聊继续清理。
 
 按 Codex `/side` 的临时会话语义设计：后台继承上下文，可见记录独立，结束时丢弃。底层使用 DSH 原生分支及临时磁盘缓存，关闭时通过原生会话删除接口清理；不保留可恢复归档。继承的目标只在侧聊分支清除，主会话的目标不变。模型和权限沿用 DSH 的原生分支行为。0.1.0 已保存的分支没有新版本的临时标记，升级会保留这些旧记录。
 
 ## 安装
 
-在 Desktop 的插件管理中添加 `github:yhfgyyf/dsh-side-chat#v0.1.2`，安装并启用。安装后完整退出并重新打开 App，使 Host 和 Client 都加载插件。
+在 Desktop 的插件管理中添加 `github:yhfgyyf/dsh-side-chat#v0.1.3`，安装并启用。安装后完整退出并重新打开 App，使 Host 和 Client 都加载插件。
 
 网页版安装到 Web profile：
 
 ```sh
-dsh plugin --profile web add 'github:yhfgyyf/dsh-side-chat#v0.1.2'
+dsh plugin --profile web add 'github:yhfgyyf/dsh-side-chat#v0.1.3'
 ```
 
-然后重启 Web 进程并刷新页面。也可从 [GitHub Releases](https://github.com/yhfgyyf/dsh-side-chat/releases/tag/v0.1.2) 下载 `dsh-side-chat-0.1.2.tgz`：Desktop 使用插件管理中的本地绝对路径，Web 使用 `dsh plugin --profile web add /绝对路径/dsh-side-chat-0.1.2.tgz`。
+然后重启 Web 进程并刷新页面。也可从 [GitHub Releases](https://github.com/yhfgyyf/dsh-side-chat/releases/tag/v0.1.3) 下载 `dsh-side-chat-0.1.3.tgz`：Desktop 使用插件管理中的本地绝对路径，Web 使用 `dsh plugin --profile web add /绝对路径/dsh-side-chat-0.1.3.tgz`。
 
 已验证 DSH Desktop `0.1.39` / Core `0.2.0-rc.1` 的 Desktop 与原生 Web。DSH 仍处于快速迭代阶段，其他 Core 版本尚未验证。
 

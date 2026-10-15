@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { mkdirSync, mkdtempSync, cpSync, readFileSync, writeFileSync } = require('node:fs');
 const { resolve, join } = require('node:path');
 const { createServer } = require('node:http');
+const { zstdCompressSync } = require('node:zlib');
 const { randomUUID } = require('node:crypto');
 const { spawn } = require('node:child_process');
 const root = resolve(__dirname, '..');
@@ -38,6 +39,33 @@ if (web) {
   writeFileSync(join(profile, 'local-plugins/package.json'), '{"private":true}\n');
 }
 const report = { surface, baseline, checks: [], failures: [], console: [], frameworkDiagnostics: [], data };
+const startupFixtures = [];
+if (!baseline) {
+  // Physical V4 logs exercise the real cold-read validator and deletion API.
+  // The first artifact reproduces the Windows activation error; the next is
+  // a healthy abandoned side which must still be cleaned up on the same boot.
+  const fixtureCwd = resolve('/', 'dsh-side-chat-startup-fixture');
+  const project = '--' + fixtureCwd.replace(/[/\\:]+/g, '-').replace(/^-+/, '') + '--';
+  for (const corrupt of [true, false]) {
+    const id = 'session-' + randomUUID(), parentId = 'session-' + randomUUID();
+    const directory = join(home, 'sessions', project, id);
+    mkdirSync(directory, { recursive: true });
+    const header = { type: 'session', version: 4, id, createdAt: 0, cwd: fixtureCwd, parentSession: parentId, isSeeded: false, delegationDepth: 0 };
+    const rows = [
+      { type: 'user/message', data: { id: 'fixture-question', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'fixture question' }] }, surfaceOp: 'append' },
+      ...corrupt ? [
+        { type: 'turn/start', data: { turn: 1 } },
+        { type: 'step/start', data: { turn: 1, step: 1 } },
+        { type: 'system/message', data: { turn: 1, step: 1, message: { id: 'fixture-system', role: 'system', source: { kind: 'system-prompt' }, content: [{ type: 'text', text: 'fixture policy' }] } }, surfaceOp: 'append' },
+      ] : [],
+    ].map((row, seq) => ({ seq, time: seq, ...row }));
+    const log = Buffer.concat([zstdCompressSync(JSON.stringify(header) + '\n'), zstdCompressSync(rows.map(row => JSON.stringify(row)).join('\n') + '\n')]);
+    const marker = JSON.stringify({ version: 2, parentId, childId: id, leaseId: randomUUID(), visibleFromSeq: rows.length });
+    writeFileSync(join(directory, 'session.v4.jsonl.zstd'), log);
+    writeFileSync(join(directory, '.dsh-side-chat-v2.json'), marker);
+    startupFixtures.push({ id, directory, log, marker, corrupt });
+  }
+}
 const requests = [];
 let releaseParent, advanceParent, finished = false, started = false, failureCode = 0, webChild, webUrl, webLog = '';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -140,6 +168,16 @@ async function run(host) {
   }
   await js(`Array.from(document.querySelectorAll('button')).find(button=>['继续','Continue'].includes(button.textContent))?.click()`);
   await until(() => js('!!window.__dshSideChatTest'), 'Test driver did not load through the plugin graph');
+  if (!baseline) {
+    const corrupt = startupFixtures.find(fixture => fixture.corrupt);
+    const healthy = startupFixtures.find(fixture => !fixture.corrupt);
+    assert.deepEqual(readFileSync(join(corrupt.directory, 'session.v4.jsonl.zstd')), corrupt.log);
+    assert.equal(readFileSync(join(corrupt.directory, '.dsh-side-chat-v2.json'), 'utf8'), corrupt.marker);
+    assert.throws(() => readFileSync(join(healthy.directory, 'session.v4.jsonl.zstd')), { code: 'ENOENT' });
+    report.preservedCorruptSessionId = corrupt.id;
+    report.preservedCorruptMarker = join(corrupt.directory, '.dsh-side-chat-v2.json');
+    report.checks.push('A corrupt stored side does not block activation; its log and marker are unchanged while another healthy abandoned side is deleted');
+  }
   const parentId = await js(`(async()=>{const ctx=window.__dshSideChatTest;const id=await ctx.sessions.create({cwd:${JSON.stringify(workspace)}});ctx.uiWorkspace.openSession(id);return id;})()`);
   report.parentId = parentId;
   await until(() => js(`window.__dshSideChatTest.sessions.binding(${JSON.stringify(parentId)})?.session.getSnapshot().openState==='open'`), 'Main session did not open');
