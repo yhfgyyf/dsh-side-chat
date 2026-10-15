@@ -6,6 +6,9 @@ export const inject = ['sessionController', 'sessions', 'agents', 'sessionPersis
 
 export async function apply(ctx) {
   const chats = new TemporaryChats(ctx);
+  ctx.on('session/event', (session, event) => chats.observeEvent(session, event), { global: true });
+  ctx.on('agent/assistant-stream', ({ agent, frame }) => chats.observeStream(agent, frame), { global: true });
+  ctx.on('session/disposed', session => chats.live.delete(session.id), { global: true });
   ctx.effect(() => () => chats.dispose(), 'side-chat: temporary Host sessions');
   await chats.reap();
   class SideChatHost extends TypertRemoteService {

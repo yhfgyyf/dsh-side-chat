@@ -6,24 +6,24 @@
 - 输入 `/side 问题`，打开侧聊并直接提问。
 - 侧聊使用原生聊天界面，支持流式回复、连续提问、附件、停止、模型和权限设置。
 - 打开时聊天区为空。主会话历史只作为后台参考上下文；侧聊界面只显示打开后提交的新问题和回复。
-- 主会话继续运行；侧聊独立处理新问题，不自动继续主任务、目标或历史中的工具调用。打开时读取当前已记录的上下文，尚未提交的流式片段不包含在快照中。
+- 主会话继续运行；侧聊独立处理新问题，不自动继续主任务、目标或历史中的工具调用。以打开时已记录的上下文为基底，每次侧聊模型调用都会补入主会话后续消息、工具结果及当前可见流式输出，作为后台参考，不显示到侧聊记录中。
 - 同一主会话再次执行 `/side` 会打开已有侧聊。侧聊中不能再创建侧聊。
-- 临时侧聊不出现在普通会话列表。使用原生侧栏标签关闭入口，停止并清理侧聊；再次打开会创建新的空侧聊。
+- 临时侧聊不出现在普通会话列表。关闭标签或收起右侧栏都会停止并清理侧聊；再次打开会创建新的空侧聊。清理尚未结束时，重新打开会等待清理完成。
 - 页面离开、App 退出或插件停用会结束侧聊。若进程被强制终止，下一次启用时只清理该版本标记的临时侧聊缓存。
 
 按 Codex `/side` 的临时会话语义设计：后台继承上下文，可见记录独立，结束时丢弃。底层使用 DSH 原生分支及临时磁盘缓存，关闭时通过原生会话删除接口清理；不保留可恢复归档。继承的目标只在侧聊分支清除，主会话的目标不变。模型和权限沿用 DSH 的原生分支行为。0.1.0 已保存的分支没有新版本的临时标记，升级会保留这些旧记录。
 
 ## 安装
 
-在 Desktop 的插件管理中添加 `github:yhfgyyf/dsh-side-chat#v0.1.1`，安装并启用。安装后完整退出并重新打开 App，使 Host 和 Client 都加载插件。
+在 Desktop 的插件管理中添加 `github:yhfgyyf/dsh-side-chat#v0.1.2`，安装并启用。安装后完整退出并重新打开 App，使 Host 和 Client 都加载插件。
 
 网页版安装到 Web profile：
 
 ```sh
-dsh plugin --profile web add 'github:yhfgyyf/dsh-side-chat#v0.1.1'
+dsh plugin --profile web add 'github:yhfgyyf/dsh-side-chat#v0.1.2'
 ```
 
-然后重启 Web 进程并刷新页面。也可从 [GitHub Releases](https://github.com/yhfgyyf/dsh-side-chat/releases/tag/v0.1.1) 下载 `dsh-side-chat-0.1.1.tgz`：Desktop 使用插件管理中的本地绝对路径，Web 使用 `dsh plugin --profile web add /绝对路径/dsh-side-chat-0.1.1.tgz`。
+然后重启 Web 进程并刷新页面。也可从 [GitHub Releases](https://github.com/yhfgyyf/dsh-side-chat/releases/tag/v0.1.2) 下载 `dsh-side-chat-0.1.2.tgz`：Desktop 使用插件管理中的本地绝对路径，Web 使用 `dsh plugin --profile web add /绝对路径/dsh-side-chat-0.1.2.tgz`。
 
 已验证 DSH Desktop `0.1.39` / Core `0.2.0-rc.1` 的 Desktop 与原生 Web。DSH 仍处于快速迭代阶段，其他 Core 版本尚未验证。
 

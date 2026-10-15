@@ -174,6 +174,8 @@ window.__ModuleLoader__.load({
 			async open(parentId) {
 				if (this.disposed) throw new Error("侧聊插件已停用。");
 				if (this.isSide(parentId)) throw new Error("侧聊中不能再开启侧聊，请回到主会话。");
+				const closing = this.closing.get(this.entries[parentId]?.childId);
+				if (closing) await closing;
 				let pending = this.opening.get(parentId);
 				if (!pending) {
 					const existing = this.entries[parentId];
@@ -219,6 +221,7 @@ window.__ModuleLoader__.load({
 							this.publish(parentId, void 0);
 						}
 						this.owned.delete(childId);
+						this.dismissStale(parentId, childId);
 					})();
 					this.closing.set(childId, pending);
 				}
@@ -535,9 +538,19 @@ window.__ModuleLoader__.load({
 			}, { slots: { views: ChatView } });
 		}
 		function SideTab({ sessionId, useTabInfo, SessionProvider, renderSlot, chats }) {
-			const { tab } = useTabInfo();
+			const { tab, sidebar } = useTabInfo();
 			const target = parseSideAddress(tab.contentId);
 			const entry = (0, react.useSyncExternalStore)(chats.subscribe, chats.getSnapshot)[sessionId];
+			(0, react.useLayoutEffect)(() => {
+				if (!sidebar.expanded && !tab.visible && target?.parentId === sessionId && chats.owns(sessionId, target.childId)) chats.close(sessionId, target.childId).catch((error) => chats.notify(sessionId, error));
+			}, [
+				sidebar.expanded,
+				tab.visible,
+				sessionId,
+				target?.parentId,
+				target?.childId,
+				chats
+			]);
 			(0, react.useEffect)(() => {
 				if (target?.parentId !== sessionId) return;
 				if (!chats.owns(sessionId, target.childId)) {

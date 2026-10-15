@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useSyncExternalStore } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react';
 import { SideChats, sideInputSource, parseSideAddress, TAB_ID, TAB_KIND } from './controller.js';
 import { sideChatRemote } from './remote.js';
 import { sidePresentation, withoutSideSessions } from './presentation.js';
@@ -77,10 +77,15 @@ function SideConversation({ useSession, useConversation, useSessions, sessionId,
 }
 
 function SideTab({ sessionId, useTabInfo, SessionProvider, renderSlot, chats }) {
-  const { tab } = useTabInfo();
+  const { tab, sidebar } = useTabInfo();
   const target = parseSideAddress(tab.contentId);
   const snapshot = useSyncExternalStore(chats.subscribe, chats.getSnapshot);
   const entry = snapshot[sessionId];
+  useLayoutEffect(() => {
+    if (!sidebar.expanded && !tab.visible && target?.parentId === sessionId && chats.owns(sessionId, target.childId)) {
+      void chats.close(sessionId, target.childId).catch(error => chats.notify(sessionId, error));
+    }
+  }, [sidebar.expanded, tab.visible, sessionId, target?.parentId, target?.childId, chats]);
   useEffect(() => {
     if (target?.parentId !== sessionId) return;
     if (!chats.owns(sessionId, target.childId)) { chats.dismissStale(sessionId, target.childId); return; }

@@ -39,12 +39,26 @@ function fixture() {
       },
       discard: async request => {
         calls.discard.push(request);
+        if (options.discardGate) await options.discardGate;
         return options.discardError ? { ok: false, error: options.discardError } : { ok: true, value: { discarded: true } };
       },
     } },
   };
   return { ctx, calls, options, chats: new SideChats(ctx) };
 }
+
+test('reopening while the previous side is closing waits for disposal and creates a fresh identity', async () => {
+  const { chats, options } = fixture();
+  const first = await chats.open('parent');
+  let finish;
+  options.discardGate = new Promise(resolve => { finish = resolve; });
+  const closing = chats.close('parent', first.childId);
+  const reopening = chats.open('parent');
+  finish();
+  await closing;
+  assert.notEqual((await reopening).childId, first.childId);
+  await chats.dispose();
+});
 
 test('side question forks the latest durable context while the parent runs; all mutations address the child', async () => {
   const { chats, calls } = fixture();

@@ -111,6 +111,8 @@ export class SideChats {
   async open(parentId) {
     if (this.disposed) throw new Error('侧聊插件已停用。');
     if (this.isSide(parentId)) throw new Error('侧聊中不能再开启侧聊，请回到主会话。');
+    const closing = this.closing.get(this.entries[parentId]?.childId);
+    if (closing) await closing;
     let pending = this.opening.get(parentId);
     if (!pending) {
       const existing = this.entries[parentId];
@@ -150,6 +152,7 @@ export class SideChats {
           this.publish(parentId, undefined);
         }
         this.owned.delete(childId);
+        this.dismissStale(parentId, childId);
       })();
       this.closing.set(childId, pending);
     }

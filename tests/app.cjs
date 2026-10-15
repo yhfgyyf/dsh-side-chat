@@ -39,7 +39,7 @@ if (web) {
 }
 const report = { surface, baseline, checks: [], failures: [], console: [], frameworkDiagnostics: [], data };
 const requests = [];
-let releaseParent, finished = false, started = false, failureCode = 0, webChild, webUrl, webLog = '';
+let releaseParent, advanceParent, finished = false, started = false, failureCode = 0, webChild, webUrl, webLog = '';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(fn, label, timeout = 15000) {
   const start = Date.now();
@@ -56,10 +56,10 @@ const mock = createServer(async (req, res) => {
   const lastUser = [...request.messages].reverse().find(message => message.role === 'user');
   const prompt = typeof lastUser?.content === 'string' ? lastUser.content : (lastUser?.content ?? []).filter(block => block.type === 'text').map(block => block.text).join('\n');
   const titleRequest = JSON.stringify(request.system).includes('Create a concise title');
-  const question = titleRequest ? 'title' : prompt.includes('SIDE_SLOW_QUESTION') ? 'slow-side' : prompt.includes('SIDE_FOLLOWUP') ? 'followup' : prompt.includes('SIDE_INLINE_QUESTION') ? 'side' : prompt.includes('PARENT_RUNNING') ? 'parent' : 'other';
+  const question = titleRequest ? 'title' : prompt.includes('SIDE_SLOW_QUESTION') ? 'slow-side' : prompt.includes('SIDE_REFRESH_QUESTION') ? 'refresh' : prompt.includes('SIDE_FOLLOWUP') ? 'followup' : prompt.includes('SIDE_INLINE_QUESTION') ? 'side' : prompt.includes('PARENT_RUNNING') ? 'parent' : 'other';
   requests.push({ question, request });
   const context = texts.join('\n');
-  const answer = question === 'side' ? context.includes('CONTEXT_TOKEN_ALPHA') ? 'SIDE_CONTEXT_OK' : 'SIDE_CONTEXT_MISSING' : question === 'followup' ? context.includes('SIDE_CONTEXT_OK') ? 'SIDE_FOLLOWUP_OK' : 'SIDE_FOLLOWUP_MISSING' : question === 'parent' ? 'PARENT_FINISHED' : 'Local fixture';
+  const answer = question === 'refresh' ? JSON.stringify(request).includes('PARENT_PROGRESS_BETA') ? 'SIDE_PROGRESS_OK' : 'SIDE_PROGRESS_MISSING' : question === 'side' ? context.includes('CONTEXT_TOKEN_ALPHA') ? 'SIDE_CONTEXT_OK' : 'SIDE_CONTEXT_MISSING' : question === 'followup' ? context.includes('SIDE_CONTEXT_OK') ? 'SIDE_FOLLOWUP_OK' : 'SIDE_FOLLOWUP_MISSING' : question === 'parent' ? 'PARENT_FINISHED' : 'Local fixture';
   const message = { id: randomUUID(), type: 'message', role: 'assistant', model: request.model, content: [{ type: 'text', text: answer }], stop_reason: 'end_turn', usage: { input_tokens: 128, output_tokens: 32 } };
   if (!request.stream) { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(message)); return; }
   res.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -75,6 +75,7 @@ const mock = createServer(async (req, res) => {
   };
   if (question === 'parent') {
     emit('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'PARENT_STARTED ' } });
+    advanceParent = () => emit('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'PARENT_PROGRESS_BETA ' } });
     releaseParent = end;
   } else if (question === 'slow-side') {
     emit('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'SIDE_RUNNING ' } });
@@ -175,7 +176,7 @@ async function run(host) {
   writeFileSync(join(data, 'side-chat-empty.png'), (await host.capturePage()).toPNG());
   report.checks.push('Opening side chat displays an empty native transcript and makes no model call');
   await submit(parentId, '/side SIDE_INLINE_QUESTION');
-  const childId = await until(() => js(`document.querySelector('[data-side-chat-session]')?.getAttribute('data-side-chat-session')`), '/side with a question did not open the right pane');
+  let childId = await until(() => js(`document.querySelector('[data-side-chat-session]')?.getAttribute('data-side-chat-session')`), '/side with a question did not open the right pane');
   report.childId = childId;
   assert.equal(childId, emptyChild);
   assert.notEqual(childId, parentId);
@@ -195,6 +196,23 @@ async function run(host) {
   assert.equal(await running(parentId), true);
   assert.deepEqual(await entries(parentId), before);
   report.checks.push('The embedded native conversation supports streaming and a second question with its own history');
+  advanceParent();
+  await until(() => js(`document.body.innerText.includes('PARENT_PROGRESS_BETA')`), 'Main progress did not reach the frontend');
+  await submit(childId, 'SIDE_REFRESH_QUESTION');
+  await until(() => js(`document.querySelector('[data-side-chat-session]')?.innerText.includes('SIDE_PROGRESS_OK')`), 'Side follow-up did not receive the current main streaming progress');
+  assert.ok(!await js(`document.querySelector('[data-side-chat-session]').innerText.includes('PARENT_PROGRESS_BETA')`), 'Parent progress leaked into the visible side transcript');
+  assert.deepEqual(await entries(parentId), before);
+  report.checks.push('A later side question sees newly streamed main progress as hidden reference context while the main turn stays running');
+  await js(`document.querySelector('[data-sidebar-right-toggle]').click()`);
+  await until(() => js(`!window.__dshSideChatTest.sessions.list.getSnapshot().byId[${JSON.stringify(childId)}]`), 'Collapsing the native sidebar kept the temporary side session alive');
+  await submit(parentId, '/side');
+  const afterCollapse = await until(() => js(`(()=>{const id=document.querySelector('[data-side-chat-session]')?.getAttribute('data-side-chat-session');return id&&id!==${JSON.stringify(childId)}?id:null;})()`), 'Side did not reopen with a fresh identity after collapse');
+  assert.notEqual(afterCollapse, childId);
+  const reopenedText = await js(`document.querySelector('[data-side-chat-session]').innerText`);
+  assert.ok(!reopenedText.includes('SIDE_CONTEXT_OK') && !reopenedText.includes('SIDE_FOLLOWUP_OK') && !reopenedText.includes('SIDE_PROGRESS_OK'));
+  childId = afterCollapse;
+  report.childId = childId;
+  report.checks.push('The actual sidebar collapse control discards the temporary side; reopening starts a new blank conversation');
   await submit(childId, '/side forbidden nested question');
   await until(() => js(`(()=>{const ctx=window.__dshSideChatTest;const state=ctx.conversation.input.for(ctx.sessions.scope(${JSON.stringify(childId)})).state.getSnapshot();return state.phase==='plain'&&state.draft==='/side forbidden nested question';})()`), 'Nested side command was not refused while preserving its draft');
   assert.equal(requests.filter(row => row.question === 'side').length, 1);

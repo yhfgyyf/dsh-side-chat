@@ -1,6 +1,6 @@
 {
   "name": "dsh-side-chat",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "独立侧聊：继承当前上下文，在右侧提问并保持主会话继续运行",
   "type": "module",
   "license": "Apache-2.0",
@@ -11,16 +11,34 @@
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
-  "files": ["dist/package", "cordis.patch.yml", "README.md", "LICENSE"],
-  "keywords": ["dsh-plugin", "deepseek-harness", "dsh", "side-chat"],
+  "files": [
+    "dist/package",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "side-chat"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/yhfgyyf/dsh-side-chat.git"
   },
   "homepage": "https://github.com/yhfgyyf/dsh-side-chat#readme",
-  "bugs": { "url": "https://github.com/yhfgyyf/dsh-side-chat/issues" },
-  "peerDependencies": { "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.1" },
-  "peerDependenciesMeta": { "@deepseek-ai/dsh-typert-protocol": { "optional": true } },
+  "bugs": {
+    "url": "https://github.com/yhfgyyf/dsh-side-chat/issues"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-typert-protocol": {
+      "optional": true
+    }
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
@@ -28,9 +46,13 @@
     "test:web": "node scripts/test-app.mjs --web",
     "check": "npm test && npm run build && npm run test:app && npm run test:web"
   },
-  "devDependencies": { "vite": "8.1.5" },
+  "devDependencies": {
+    "vite": "8.1.5"
+  },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "inject": [

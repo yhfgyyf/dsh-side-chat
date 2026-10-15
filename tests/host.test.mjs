@@ -8,7 +8,7 @@ import { TemporaryChats } from '../src/host.js';
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-side-chat-host-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const deleted = [], policies = [], cleared = [];
+  const deleted = [], policies = [], contexts = [], cleared = [];
   const sessions = new Map(), agents = new Map();
   const originalGoal = { id: 'main-goal', revision: 5, phase: 'active' };
   let count = 0;
@@ -27,15 +27,41 @@ async function fixture(t) {
         sessions.set(id, header);
         await mkdir(join(root, id));
         const session = { id, header, seq: 35, append() { this.seq++; } };
-        agents.set(id, { session, ctx: { systemPrompt: { section: policy => policies.push({ id, policy }) } } });
+        agents.set(id, { session, ctx: { systemPrompt: {
+          section: policy => { policies.push({ id, policy }); },
+          context: context => { contexts.push({ id, context }); },
+        } } });
         return { sessionId: id };
       },
       rename: async () => {},
       delete: async ({ sessionId }) => { deleted.push(sessionId); agents.delete(sessionId); sessions.delete(sessionId); await rm(join(root, sessionId), { recursive: true, force: true }); },
     },
   };
-  return { ctx, root, deleted, policies, cleared, originalGoal, sessions, chats: new TemporaryChats(ctx) };
+  return { ctx, root, deleted, policies, contexts, cleared, originalGoal, sessions, agents, chats: new TemporaryChats(ctx) };
 }
+
+test('each side request observes new parent events and visible streaming text without copying reasoning or changing the parent', async t => {
+  const { chats, contexts, agents } = await fixture(t);
+  const entry = await chats.open({ parentId: 'main', atSeq: 18 });
+  const read = contexts[0].context.text;
+  assert.ok(!read().includes('LATEST_MAIN_PROGRESS'));
+  const parent = { id: 'main', status: 'running', session: { id: 'main', seq: 22 } };
+  agents.set('main', parent);
+  const updates = { seq: 20, type: 'assistant/message', data: { message: { content: [{ type: 'reasoning', text: 'PRIVATE_REASONING' }, { type: 'text', text: 'LATEST_MAIN_PROGRESS {{unknown_variable}}' }] } } };
+  chats.observeEvent({ id: parent.id }, updates);
+  chats.observeStream(parent, { type: 'start', attemptId: 'attempt-1', revision: 1 });
+  chats.observeStream(parent, { type: 'chunk', attemptId: 'attempt-1', revision: 2, chunk: { type: 'reasoning-delta', text: 'PRIVATE_REASONING' } });
+  chats.observeStream(parent, { type: 'chunk', attemptId: 'attempt-1', revision: 3, chunk: { type: 'text-delta', text: 'LIVE_MAIN_PROGRESS' } });
+  assert.match(read(), /LATEST_MAIN_PROGRESS/);
+  assert.match(read(), /LIVE_MAIN_PROGRESS/);
+  assert.ok(!read().includes('PRIVATE_REASONING'));
+  assert.ok(!read().includes('{{unknown_variable}}'));
+  assert.match(read(), /"throughSeq":21/);
+  assert.equal(parent.status, 'running');
+  assert.equal(parent.session.seq, 22);
+  await chats.discard(entry);
+  assert.equal(chats.progress.size, 0);
+});
 
 test('the host scopes side policy and goal clearing to the child; forged cleanup cannot delete the main chat', async t => {
   const { chats, deleted, policies, cleared, originalGoal, root } = await fixture(t);
