@@ -11,7 +11,8 @@ const appRoot = process.env.DSH_SIDE_CHAT_APP_ROOT;
 const surface = process.env.DSH_SIDE_CHAT_SURFACE ?? 'desktop';
 const web = surface === 'web';
 const baseline = process.env.DSH_SIDE_CHAT_TEST_BASELINE === '1';
-const variant = baseline ? 'baseline-' + surface : surface;
+const contentTools = process.env.DSH_DESKTOP_CONTENT_TOOLS_TEST === '1';
+const variant = contentTools ? 'content-tools' : baseline ? 'baseline-' + surface : surface;
 assert.ok(appRoot && appRoot.endsWith('dsh-desktop'));
 const reports = join(root, '.test-data');
 mkdirSync(reports, { recursive: true });
@@ -198,6 +199,13 @@ async function run(host) {
     return;
   }
   await until(() => js(`!!document.querySelector('button[aria-label="打开侧聊"]')`), 'Plugin header action did not mount after the conversation started');
+  if (contentTools) {
+    await require(process.env.DSH_DESKTOP_CONTENT_TOOLS_MODULE || './content-tools.cjs').run({ host, js, until, parentId, workspace, requests, report, data });
+    releaseParent();
+    await until(async () => !(await running(parentId)), 'Parent failed to finish after content tests');
+    assert.deepEqual(report.console, []);
+    return;
+  }
   const originalTab = await js(`(()=>{const ctx=window.__dshSideChatTest;const sidebar=ctx.get('sidebarRight');sidebar.openTab('files');return sidebar.active();})()`);
   assert.equal(originalTab.kind, 'files');
   const before = await entries(parentId);
@@ -252,7 +260,7 @@ async function run(host) {
   report.childId = childId;
   report.checks.push('The actual sidebar collapse control discards the temporary side; reopening starts a new blank conversation');
   await submit(childId, '/side forbidden nested question');
-  await until(() => js(`(()=>{const ctx=window.__dshSideChatTest;const state=ctx.conversation.input.for(ctx.sessions.scope(${JSON.stringify(childId)})).state.getSnapshot();return state.phase==='plain'&&state.draft==='/side forbidden nested question';})()`), 'Nested side command was not refused while preserving its draft');
+  await until(() => js(`(()=>{const ctx=window.__dshSideChatTest;const state=ctx.conversation.input.for(ctx.sessions.scope(${JSON.stringify(childId)})).state.getSnapshot();return state.phase==='plain'&&document.querySelector('[data-side-chat-session] [contenteditable="true"]')?.textContent==='/side forbidden nested question';})()`), 'Nested side command was not refused while preserving its draft');
   assert.equal(requests.filter(row => row.question === 'side').length, 1);
   await js(`window.__dshSideChatTest.conversation.input.for(window.__dshSideChatTest.sessions.scope(${JSON.stringify(childId)})).setDraft('')`);
   await submit(parentId, '/side');

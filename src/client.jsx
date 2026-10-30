@@ -105,6 +105,9 @@ export async function apply(ctx) {
 
 function mountUI(ctx, unmount) {
   const chats = new SideChats(ctx);
+  // Desktop selection actions open the same temporary chat as /side. They only
+  // prepare its composer; sending remains an explicit user action.
+  ctx.effect(() => ctx.reflect.provide('sideChats', chats), 'side-chat: selection draft access');
   ctx.effect(() => async () => { await chats.dispose(); await unmount(); }, 'side-chat: temporary Client sessions');
   ctx.effect(() => wrapNativeSlot(ctx, 'conversation.view', entry => entry.options.id === 'chat', NativeSideChat, chats), 'side-chat: separate visible transcript');
   ctx.effect(() => wrapNativeSlot(ctx, 'sidebar.workspaces', () => true, NativeWorkspace, chats), 'side-chat: temporary sessions stay out of the chat list');

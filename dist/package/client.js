@@ -593,6 +593,7 @@ window.__ModuleLoader__.load({
 		}
 		function mountUI(ctx, unmount) {
 			const chats = new SideChats(ctx);
+			ctx.effect(() => ctx.reflect.provide("sideChats", chats), "side-chat: selection draft access");
 			ctx.effect(() => async () => {
 				await chats.dispose();
 				await unmount();

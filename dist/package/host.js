@@ -88,7 +88,9 @@ export class TemporaryChats {
       entry = { version: 2, parentId, childId, leaseId: randomUUID(), visibleFromSeq: 0 };
       this.owned.set(childId, entry);
       const agent = this.ctx.agents.get(childId);
-      if (!agent || agent.session.header.parentSession !== parentId) throw new Error('侧聊分支未就绪。');
+      if (!agent || agent.session.header.parentSession !== parentId && !(agent.session.header.isSeeded === true && agent.session.inheritedEventCount === atSeq + 1)) throw new Error('侧聊分支未就绪。');
+      // Ordinary forks no longer carry the subagent parentSession field.
+      if (agent.session.header.parentSession !== parentId) Object.assign(entry, { version: 3, inheritedEventCount: agent.session.inheritedEventCount });
       // Register policy on this exact Agent scope, leaving the parent unchanged.
       const policy = agent.ctx.systemPrompt.section({ name: 'dsh-side-chat', order: 10000, text: SIDE_INSTRUCTIONS, interpolate: false });
       const context = agent.ctx.systemPrompt.context({ name: 'dsh-side-chat:main-progress', order: 10000, text: () => this.mainContext(progress) });
@@ -153,7 +155,9 @@ export class TemporaryChats {
       try {
         try { saved = JSON.parse(await readFile(this.markerPath(snapshot.header), 'utf8')); }
         catch (error) { if (error.code === 'ENOENT') continue; throw error; }
-        if (saved?.version !== 2 || saved.childId !== snapshot.header.id || saved.parentId !== snapshot.header.parentSession || saved.parentId === saved.childId || typeof saved.leaseId !== 'string') throw new Error('临时侧聊标记无效，已保留记录。');
+        const linked = saved?.version === 2 ? saved.parentId === snapshot.header.parentSession
+          : saved?.version === 3 && snapshot.header.isSeeded === true && Number.isSafeInteger(saved.inheritedEventCount) && saved.inheritedEventCount > 0 && saved.visibleFromSeq > saved.inheritedEventCount;
+        if (!linked || saved.childId !== snapshot.header.id || typeof saved.parentId !== 'string' || saved.parentId === saved.childId || typeof saved.leaseId !== 'string') throw new Error('临时侧聊标记无效，已保留记录。');
         this.owned.set(saved.childId, saved);
         await this.discard(saved);
       } catch (error) {

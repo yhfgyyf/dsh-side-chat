@@ -6,12 +6,12 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const appRoot = resolve(root, '../dsh-desktop');
 const executable = resolve(appRoot, 'node_modules/.bin/electron');
-const child = spawn(executable, [resolve(root, 'tests/app.cjs')], { cwd: appRoot, env: { ...process.env, DSH_SIDE_CHAT_APP_ROOT: appRoot, DSH_SIDE_CHAT_SURFACE: process.argv.includes('--web') ? 'web' : 'desktop' }, stdio: 'inherit' });
+const child = spawn(executable, [resolve(root, 'tests/app.cjs')], { cwd: appRoot, env: { ...process.env, DSH_SIDE_CHAT_APP_ROOT: appRoot, DSH_SIDE_CHAT_SURFACE: process.argv.includes('--web') ? 'web' : 'desktop', ...process.argv.includes('--content-tools') ? { DSH_DESKTOP_CONTENT_TOOLS_TEST: '1' } : {} }, stdio: 'inherit' });
 child.once('error', error => { console.error(error.message); process.exitCode = 1; });
 child.once('exit', code => {
   let result = code ?? 1;
   if (result === 0 && process.env.DSH_SIDE_CHAT_TEST_BASELINE !== '1') {
-    const surface = process.argv.includes('--web') ? 'web' : 'desktop';
+    const surface = process.argv.includes('--content-tools') ? 'content-tools' : process.argv.includes('--web') ? 'web' : 'desktop';
     const path = resolve(root, '.test-data/latest-' + surface + '.json');
     const report = JSON.parse(readFileSync(path, 'utf8'));
     const markers = [];

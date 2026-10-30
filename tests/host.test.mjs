@@ -146,3 +146,24 @@ test('malformed or mismatched markers are preserved without preventing cleanup o
   for (let i = 0; i < markers.length; i++) assert.equal(await readFile(markers[i], 'utf8'), values[i]);
   await restarted.dispose();
 });
+
+
+test('ordinary seeded forks without subagent metadata keep temporary ownership across restart', async t => {
+  const { ctx, agents, sessions, chats, policies, deleted } = await fixture(t);
+  const fork = ctx.sessionController.fork;
+  ctx.sessionController.fork = async request => {
+    const result = await fork(request);
+    const child = agents.get(result.sessionId);
+    delete child.session.header.parentSession;
+    child.session.header.isSeeded = true;
+    child.session.inheritedEventCount = request.atSeq + 1;
+    sessions.set(result.sessionId, child.session.header);
+    return result;
+  };
+  const entry = await chats.open({ parentId: 'main', atSeq: 18 });
+  assert.equal(entry.version, 3);
+  assert.equal(entry.inheritedEventCount, 19);
+  assert.equal(policies[0].id, entry.childId);
+  await new TemporaryChats(ctx).reap();
+  assert.deepEqual(deleted, [entry.childId]);
+});
