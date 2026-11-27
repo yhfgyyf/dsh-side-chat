@@ -1,10 +1,12 @@
 # DSH Side Chat
 
-独立 DSH 插件，在原生右侧栏打开临时侧聊，复用原生聊天布局。当前版本 **0.1.6** 适配 DSH Core **0.2.2-alpha.2** 的 Desktop 与 Web 插件接口；兼容声明同时保留 `0.2.0-rc.1` 与 `0.2.1-rc.2`。
+在 DeepSeek Harness 的右侧栏开一个临时对话。主会话继续执行时，可以在侧聊中追问进度、解释一段输出，或者讨论下一步。收起侧栏会结束侧聊，下次打开可基于主会话当时的进度重新提问。
+
+0.1.9 已加入 DeepSeek Harness **0.2.3-alpha.2** 的插件兼容声明，可与 DSH Desktop **0.1.58** 搭配使用。[上游内核](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.3-alpha.2) · [下载 Side 0.1.9](https://github.com/yhfgyyf/dsh-side-chat/releases/tag/v0.1.9)
 
 - 输入 `/side`，或点击会话标题栏的“打开侧聊”按钮。
 - 输入 `/side 问题`，打开侧聊并直接提问。
-- 配合 DSH Desktop `0.1.45` 的原生引用菜单，选中会话文字后可“引用文本到主会话”或“在侧边聊天中提问”。侧聊已打开时直接复用原侧聊，保留草稿，引用不会自动发送。
+- 配合 DSH Desktop `0.1.45` 及以上版本 的原生引用菜单，选中会话文字后可“引用文本到主会话”或“在侧边聊天中提问”。侧聊已打开时直接复用原侧聊，保留草稿，引用不会自动发送。
 - 侧聊使用原生聊天界面，支持流式回复、连续提问、附件、停止、模型和权限设置。
 - 打开时聊天区为空。主会话历史只作为后台参考上下文；侧聊界面只显示打开后提交的新问题和回复。
 - 主会话继续运行；侧聊独立处理新问题，不自动继续主任务、目标或历史中的工具调用。以打开时已记录的上下文为基底，每次侧聊模型调用都会补入主会话后续消息、工具结果及当前可见流式输出，作为后台参考，不显示到侧聊记录中。
@@ -17,21 +19,21 @@
 
 ## 安装
 
-在 Desktop 插件管理中添加 `github:yhfgyyf/dsh-side-chat#v0.1.6`，安装并启用后完整退出并重新打开 App。
+在 Desktop 插件管理中添加 `github:yhfgyyf/dsh-side-chat#v0.1.9`，安装并启用后完整退出并重新打开 App。
 
 Web 安装到 Web profile：
 
 ```sh
-dsh plugin --profile web add 'github:yhfgyyf/dsh-side-chat#v0.1.6'
+dsh plugin --profile web add 'github:yhfgyyf/dsh-side-chat#v0.1.9'
 ```
 
-重启 Web 进程并刷新页面。也可从 [v0.1.6 Release](https://github.com/yhfgyyf/dsh-side-chat/releases/tag/v0.1.6) 下载 `dsh-side-chat-0.1.6.tgz`，在 Desktop 插件管理中选择本地包；无需解压。
+重启 Web 进程并刷新页面。也可从 [v0.1.9 Release](https://github.com/yhfgyyf/dsh-side-chat/releases/tag/v0.1.9) 下载 `dsh-side-chat-0.1.9.tgz`，在 Desktop 插件管理中选择本地包；无需解压。
 
-同一份插件包用于 macOS、Windows、Ubuntu 和麒麟；插件没有生产依赖，不携带平台原生库。App 不预装该插件，更新 App 不会替换已有插件。0.1.6 适配当前 0.2.2-alpha.2 的普通分支头及临时标记格式，沿用关闭丢弃、再次打开空白侧聊和后台同步主会话进展的行为。本次发布未向 npm 发布。
+同一份插件包用于 macOS、Windows、Ubuntu 和麒麟；插件没有生产依赖，不携带平台原生库。App 不预装该插件，更新 App 不会替换已有插件。包清单同时保留 0.2.0-rc.1、0.2.1-rc.2、0.2.2-alpha.2 和 0.2.2-rc.1 的协议版本声明。
 
 ## 开发
 
-本次构建与测试使用 Node.js 24.15.0：
+使用 Node.js 24.22.3 构建并运行测试。
 
 ```sh
 git clone https://github.com/yhfgyyf/dsh-side-chat.git
